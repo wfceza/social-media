@@ -1,6 +1,7 @@
 {
   "name": "vite_react_shadcn_ts",
   "private": true,
+  "homepage": "https://gitname.github.io/react-gh-pages",
   "version": "0.0.0",
   "type": "module",
   "scripts": {
