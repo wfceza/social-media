@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      base: '/vite-deploy-demo/'
+      base: '/social-media/'
     },
   },
 }));
