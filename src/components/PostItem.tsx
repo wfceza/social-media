@@ -5,9 +5,15 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Heart, MessageSquare, Send } from 'lucide-react';
+import { Heart, MessageSquare, Send, Trash2, MoreVertical } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface Post {
   id: string;
@@ -22,6 +28,8 @@ interface Post {
     author_name: string;
     created_at: string;
   }>;
+  author_id: string;
+  image_url?: string;
 }
 
 interface PostItemProps {
@@ -32,10 +40,12 @@ export const PostItem = ({ post }: PostItemProps) => {
   const [showComments, setShowComments] = useState(false);
   const [commentContent, setCommentContent] = useState('');
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const { user } = useAuth();
 
   const isLiked = user && post.likes.includes(user.id);
   const likeCount = post.likes.length;
+  const isOwner = user && post.author_id === user.id;
 
   const handleLike = async () => {
     if (!user) return;
@@ -68,6 +78,36 @@ export const PostItem = ({ post }: PostItemProps) => {
         description: "Failed to update like. Please try again.",
         variant: "destructive"
       });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!user || !isOwner) return;
+
+    setDeleting(true);
+    try {
+      // Delete the post
+      const { error } = await supabase
+        .from('posts')
+        .delete()
+        .eq('id', post.id)
+        .eq('author_id', user.id); // Extra security check
+
+      if (error) throw error;
+
+      toast({
+        title: "Post deleted",
+        description: "Your post has been deleted successfully."
+      });
+    } catch (error: any) {
+      console.error('Error deleting post:', error);
+      toast({ 
+        title: "Error", 
+        description: "Failed to delete post. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -120,13 +160,44 @@ export const PostItem = ({ post }: PostItemProps) => {
             </AvatarFallback>
           </Avatar>
           <div className="flex-1">
-            <div className="flex items-center space-x-2">
-              <h3 className="font-semibold text-sm">{post.authorName}</h3>
-              <span className="text-xs text-gray-500">
-                {formatTimestamp(post.timestamp)}
-              </span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <h3 className="font-semibold text-sm">{post.authorName}</h3>
+                <span className="text-xs text-gray-500">
+                  {formatTimestamp(post.timestamp)}
+                </span>
+              </div>
+              {isOwner && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="w-8 h-8 p-0">
+                      <MoreVertical className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={handleDelete}
+                      disabled={deleting}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      {deleting ? 'Deleting...' : 'Delete'}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
-            <p className="mt-2 text-gray-800 leading-relaxed">{post.content}</p>
+            {post.content && (
+              <p className="mt-2 text-gray-800 leading-relaxed">{post.content}</p>
+            )}
+            {post.image_url && (
+              <img 
+                src={post.image_url} 
+                alt="Post attachment" 
+                className="mt-3 max-w-full h-auto rounded-lg cursor-pointer"
+                onClick={() => window.open(post.image_url, '_blank')}
+              />
+            )}
           </div>
         </div>
 

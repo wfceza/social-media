@@ -10,7 +10,9 @@ interface Post {
   content: string;
   author_name: string;
   author_email: string;
+  author_id: string;
   created_at: string;
+  image_url?: string;
   likes: string[];
   comments: Array<{
     id: string;

@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Send } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { ImageUpload } from './ImageUpload';
 
 interface Message {
   id: string;
@@ -15,11 +16,13 @@ interface Message {
   author_name: string;
   author_id: string;
   created_at: string;
+  image_url?: string;
 }
 
 export const ChatRoom = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [imageUrl, setImageUrl] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -75,21 +78,23 @@ export const ChatRoom = () => {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !user) return;
+    if ((!newMessage.trim() && !imageUrl) || !user) return;
 
     setLoading(true);
     try {
       const { error } = await supabase
         .from('messages')
         .insert({
-          content: newMessage.trim(),
+          content: newMessage.trim() || '',
           author_id: user.id,
-          author_name: user.email?.split('@')[0] || 'Anonymous'
+          author_name: user.email?.split('@')[0] || 'Anonymous',
+          image_url: imageUrl || null
         });
 
       if (error) throw error;
       
       setNewMessage('');
+      setImageUrl('');
     } catch (error: any) {
       console.error('Error sending message:', error);
       toast({ 
@@ -106,6 +111,8 @@ export const ChatRoom = () => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
+
+  const canSend = (newMessage.trim() || imageUrl) && !loading;
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
@@ -148,7 +155,15 @@ export const ChatRoom = () => {
                       ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white'
                       : 'bg-gray-100 text-gray-800'
                   }`}>
-                    <p className="text-sm">{message.content}</p>
+                    {message.content && <p className="text-sm">{message.content}</p>}
+                    {message.image_url && (
+                      <img 
+                        src={message.image_url} 
+                        alt="Shared image" 
+                        className="mt-2 max-w-full h-auto rounded cursor-pointer"
+                        onClick={() => window.open(message.image_url, '_blank')}
+                      />
+                    )}
                   </div>
                   <div className="mt-1 text-xs text-gray-500">
                     <span className="font-medium">{message.author_name}</span>
@@ -163,17 +178,36 @@ export const ChatRoom = () => {
         </CardContent>
         
         <div className="p-4 border-t">
+          {imageUrl && (
+            <div className="mb-3">
+              <ImageUpload
+                onImageUploaded={setImageUrl}
+                onImageRemoved={() => setImageUrl('')}
+                currentImageUrl={imageUrl}
+                disabled={loading}
+              />
+            </div>
+          )}
           <form onSubmit={handleSendMessage} className="flex space-x-2">
-            <Input
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Type your message..."
-              className="flex-1"
-              maxLength={200}
-            />
+            <div className="flex-1 flex space-x-2">
+              <Input
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder="Type your message..."
+                className="flex-1"
+                maxLength={200}
+              />
+              {!imageUrl && (
+                <ImageUpload
+                  onImageUploaded={setImageUrl}
+                  onImageRemoved={() => setImageUrl('')}
+                  disabled={loading}
+                />
+              )}
+            </div>
             <Button
               type="submit"
-              disabled={!newMessage.trim() || loading}
+              disabled={!canSend}
               className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
             >
               {loading ? (

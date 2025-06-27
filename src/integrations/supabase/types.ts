@@ -80,6 +80,7 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          image_url: string | null
         }
         Insert: {
           author_id: string
@@ -87,6 +88,7 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          image_url?: string | null
         }
         Update: {
           author_id?: string
@@ -94,6 +96,7 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          image_url?: string | null
         }
         Relationships: []
       }
@@ -105,6 +108,7 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          image_url: string | null
           updated_at: string
         }
         Insert: {
@@ -114,6 +118,7 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          image_url?: string | null
           updated_at?: string
         }
         Update: {
@@ -123,6 +128,7 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          image_url?: string | null
           updated_at?: string
         }
         Relationships: []
