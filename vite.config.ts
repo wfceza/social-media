@@ -20,4 +20,5 @@ export default defineConfig(({ mode }) => ({
       
     },
   },
+  base: '/vite-deploy-demo/',
 }));
