@@ -7,13 +7,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Send } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Message {
   id: string;
   content: string;
-  authorName: string;
-  authorId: string;
-  timestamp: string;
+  author_name: string;
+  author_id: string;
+  created_at: string;
 }
 
 export const ChatRoom = () => {
@@ -31,23 +32,65 @@ export const ChatRoom = () => {
     scrollToBottom();
   }, [messages]);
 
+  const fetchMessages = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      setMessages(data || []);
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      fetchMessages();
+    }
+  }, [user]);
+
+  // Set up real-time subscription for new messages
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('messages_realtime')
+      .on('postgres_changes', 
+        { event: 'INSERT', schema: 'public', table: 'messages' },
+        (payload) => {
+          console.log('New message received:', payload.new);
+          setMessages(prev => [...prev, payload.new as Message]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !user) return;
 
     setLoading(true);
     try {
-      const message: Message = {
-        id: Date.now().toString(),
-        content: newMessage.trim(),
-        authorId: user.id,
-        authorName: user.email?.split('@')[0] || 'Anonymous',
-        timestamp: new Date().toISOString()
-      };
+      const { error } = await supabase
+        .from('messages')
+        .insert({
+          content: newMessage.trim(),
+          author_id: user.id,
+          author_name: user.email?.split('@')[0] || 'Anonymous'
+        });
+
+      if (error) throw error;
       
-      setMessages(prev => [...prev, message]);
       setNewMessage('');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending message:', error);
       toast({ 
         title: "Error", 
@@ -84,33 +127,33 @@ export const ChatRoom = () => {
               <div
                 key={message.id}
                 className={`flex items-start space-x-3 ${
-                  message.authorId === user?.id ? 'flex-row-reverse space-x-reverse' : ''
+                  message.author_id === user?.id ? 'flex-row-reverse space-x-reverse' : ''
                 }`}
               >
                 <Avatar className="w-8 h-8">
                   <AvatarFallback className={`text-white text-sm ${
-                    message.authorId === user?.id 
+                    message.author_id === user?.id 
                       ? 'bg-gradient-to-r from-purple-600 to-blue-600'
                       : 'bg-gradient-to-r from-gray-600 to-gray-700'
                   }`}>
-                    {message.authorName.charAt(0).toUpperCase()}
+                    {message.author_name.charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 
                 <div className={`flex-1 max-w-xs ${
-                  message.authorId === user?.id ? 'text-right' : 'text-left'
+                  message.author_id === user?.id ? 'text-right' : 'text-left'
                 }`}>
                   <div className={`inline-block p-3 rounded-lg ${
-                    message.authorId === user?.id
+                    message.author_id === user?.id
                       ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white'
                       : 'bg-gray-100 text-gray-800'
                   }`}>
                     <p className="text-sm">{message.content}</p>
                   </div>
                   <div className="mt-1 text-xs text-gray-500">
-                    <span className="font-medium">{message.authorName}</span>
+                    <span className="font-medium">{message.author_name}</span>
                     {' • '}
-                    <span>{formatTimestamp(message.timestamp)}</span>
+                    <span>{formatTimestamp(message.created_at)}</span>
                   </div>
                 </div>
               </div>

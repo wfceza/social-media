@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
 import { Send, Image } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 export const PostCreator = () => {
   const [content, setContent] = useState('');
@@ -18,14 +19,16 @@ export const PostCreator = () => {
 
     setLoading(true);
     try {
-      // For now, we'll just show success message
-      // Database integration will come after setting up tables
-      console.log('Creating post:', {
-        content: content.trim(),
-        author_id: user.id,
-        author_email: user.email,
-        author_name: user.email?.split('@')[0] || 'Anonymous',
-      });
+      const { error } = await supabase
+        .from('posts')
+        .insert({
+          content: content.trim(),
+          author_id: user.id,
+          author_email: user.email || '',
+          author_name: user.email?.split('@')[0] || 'Anonymous',
+        });
+
+      if (error) throw error;
       
       setContent('');
       toast({ title: "Post created!", description: "Your post has been shared." });

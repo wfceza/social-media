@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Heart, MessageSquare, Send } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Post {
   id: string;
@@ -18,8 +19,8 @@ interface Post {
   comments: Array<{
     id: string;
     content: string;
-    authorName: string;
-    timestamp: string;
+    author_name: string;
+    created_at: string;
   }>;
 }
 
@@ -40,10 +41,27 @@ export const PostItem = ({ post }: PostItemProps) => {
     if (!user) return;
 
     try {
-      // Database integration will come later
-      console.log('Toggling like for post:', post.id);
-      toast({ title: "Like updated!", description: "Your reaction has been recorded." });
-    } catch (error) {
+      if (isLiked) {
+        // Unlike the post
+        const { error } = await supabase
+          .from('likes')
+          .delete()
+          .eq('post_id', post.id)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+      } else {
+        // Like the post
+        const { error } = await supabase
+          .from('likes')
+          .insert({
+            post_id: post.id,
+            user_id: user.id
+          });
+
+        if (error) throw error;
+      }
+    } catch (error: any) {
       console.error('Error updating like:', error);
       toast({ 
         title: "Error", 
@@ -59,11 +77,20 @@ export const PostItem = ({ post }: PostItemProps) => {
 
     setLoading(true);
     try {
-      // Database integration will come later
-      console.log('Adding comment to post:', post.id, commentContent);
+      const { error } = await supabase
+        .from('comments')
+        .insert({
+          post_id: post.id,
+          content: commentContent.trim(),
+          author_id: user.id,
+          author_name: user.email?.split('@')[0] || 'Anonymous'
+        });
+
+      if (error) throw error;
+
       setCommentContent('');
       toast({ title: "Comment added!", description: "Your comment has been posted." });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding comment:', error);
       toast({ 
         title: "Error", 
@@ -151,14 +178,14 @@ export const PostItem = ({ post }: PostItemProps) => {
                 <div key={comment.id} className="flex items-start space-x-2 bg-gray-50 rounded-lg p-3">
                   <Avatar className="w-6 h-6">
                     <AvatarFallback className="bg-gradient-to-r from-purple-400 to-blue-400 text-white text-xs">
-                      {comment.authorName.charAt(0).toUpperCase()}
+                      {comment.author_name.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1">
                     <div className="flex items-center space-x-2">
-                      <span className="font-medium text-sm">{comment.authorName}</span>
+                      <span className="font-medium text-sm">{comment.author_name}</span>
                       <span className="text-xs text-gray-500">
-                        {formatTimestamp(comment.timestamp)}
+                        {formatTimestamp(comment.created_at)}
                       </span>
                     </div>
                     <p className="text-sm text-gray-700 mt-1">{comment.content}</p>
