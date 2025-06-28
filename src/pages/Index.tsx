@@ -6,13 +6,12 @@ import { Header } from '@/components/Header';
 import { PostFeed } from '@/components/PostFeed';
 import { ChatRoom } from '@/components/ChatRoom';
 import { UserProfile } from '@/components/UserProfile';
-import { DirectMessages } from '@/components/DirectMessages';
 import { FriendRequests } from '@/components/FriendRequests';
-
+import { DirectMessages } from '@/components/DirectMessages';
 
 const AppContent = () => {
   const { user, loading } = useAuth();
-  const [currentView, setCurrentView] = useState<'feed' | 'chat'>('feed');
+  const [currentView, setCurrentView] = useState<'feed' | 'chat' | 'profile' | 'friends' | 'messages'>('feed');
 
   if (loading) {
     return (
@@ -33,7 +32,11 @@ const AppContent = () => {
     <div className="min-h-screen bg-gray-50">
       <Header currentView={currentView} onViewChange={setCurrentView} />
       <main>
-        {currentView === 'feed' ? <PostFeed /> : <ChatRoom />}
+        {currentView === 'feed' && <PostFeed />}
+        {currentView === 'chat' && <ChatRoom />}
+        {currentView === 'profile' && <UserProfile />}
+        {currentView === 'friends' && <FriendRequests />}
+        {currentView === 'messages' && <DirectMessages />}
       </main>
     </div>
   );
