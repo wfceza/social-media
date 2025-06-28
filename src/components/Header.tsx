@@ -2,11 +2,11 @@
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { LogOut, MessageSquare, Heart } from 'lucide-react';
+import { LogOut, MessageSquare, Heart, User, Users, Mail } from 'lucide-react';
 
 interface HeaderProps {
-  currentView: 'feed' | 'chat';
-  onViewChange: (view: 'feed' | 'chat') => void;
+  currentView: 'feed' | 'chat' | 'profile' | 'friends' | 'messages';
+  onViewChange: (view: 'feed' | 'chat' | 'profile' | 'friends' | 'messages') => void;
 }
 
 export const Header = ({ currentView, onViewChange }: HeaderProps) => {
@@ -45,6 +45,33 @@ export const Header = ({ currentView, onViewChange }: HeaderProps) => {
             >
               <MessageSquare className="w-4 h-4" />
               <span>Chat</span>
+            </Button>
+            <Button
+              variant={currentView === 'messages' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => onViewChange('messages')}
+              className="flex items-center space-x-2"
+            >
+              <Mail className="w-4 h-4" />
+              <span>Messages</span>
+            </Button>
+            <Button
+              variant={currentView === 'friends' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => onViewChange('friends')}
+              className="flex items-center space-x-2"
+            >
+              <Users className="w-4 h-4" />
+              <span>Friends</span>
+            </Button>
+            <Button
+              variant={currentView === 'profile' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => onViewChange('profile')}
+              className="flex items-center space-x-2"
+            >
+              <User className="w-4 h-4" />
+              <span>Profile</span>
             </Button>
           </nav>
         </div>

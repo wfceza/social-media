@@ -23,7 +23,7 @@ export const AuthForm = () => {
         toast({ title: "Welcome back!", description: "You've successfully logged in." });
       } else {
         await signup(email, password);
-        toast({ title: "Account created!", description: "Welcome to our community." });
+        toast({ title: "Account created!", description: "Welcome to CEZAHUB." });
       }
     } catch (error: any) {
       toast({ 
@@ -37,7 +37,15 @@ export const AuthForm = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-400 via-pink-500 to-red-500 p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-purple-400 via-pink-500 to-red-500 p-4">
+      {/* Header */}
+      <div className="text-center mb-8">
+        <h1 className="text-6xl font-bold text-white mb-2 tracking-wider">
+          CEZAHUB
+        </h1>
+        <div className="w-32 h-1 bg-white mx-auto mb-4"></div>
+      </div>
+
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
@@ -87,6 +95,13 @@ export const AuthForm = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Footer */}
+      <div className="text-center mt-8">
+        <p className="text-white text-lg font-light tracking-wide">
+          fun and vibes
+        </p>
+      </div>
     </div>
   );
 };
