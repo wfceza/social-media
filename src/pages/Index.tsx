@@ -5,6 +5,10 @@ import { AuthForm } from '@/components/AuthForm';
 import { Header } from '@/components/Header';
 import { PostFeed } from '@/components/PostFeed';
 import { ChatRoom } from '@/components/ChatRoom';
+import { UserProfile } from '@/components/UserProfile';
+import { DirectMessages } from '@/components/DirectMessages';
+import { FriendRequests } from '@/components/FriendRequests';
+
 
 const AppContent = () => {
   const { user, loading } = useAuth();
