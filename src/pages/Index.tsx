@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { AuthForm } from '@/components/AuthForm';
 import { Header } from '@/components/Header';
@@ -11,7 +11,16 @@ import { DirectMessages } from '@/components/DirectMessages';
 
 const AppContent = () => {
   const { user, loading } = useAuth();
-  const [currentView, setCurrentView] = useState<'feed' | 'chat' | 'profile' | 'friends' | 'messages'>('feed');
+  const [currentView, setCurrentView] = useState<'feed' | 'chat' | 'profile' | 'friends' | 'messages'>(() => {
+    // Initialize from localStorage or default to 'feed'
+    const saved = localStorage.getItem('currentView');
+    return (saved as 'feed' | 'chat' | 'profile' | 'friends' | 'messages') || 'feed';
+  });
+
+  // Save current view to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('currentView', currentView);
+  }, [currentView]);
 
   if (loading) {
     return (

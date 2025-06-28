@@ -64,12 +64,14 @@ export const DirectMessages = () => {
     }
   }, [selectedFriend, user]);
 
-  // Set up real-time subscription for direct messages
+  // Enhanced real-time subscription for direct messages
   useEffect(() => {
     if (!user || !selectedFriend) return;
 
+    console.log('Setting up real-time subscription for messages');
+    
     const channel = supabase
-      .channel('direct_messages_realtime')
+      .channel(`direct_messages_${user.id}_${selectedFriend.id}`)
       .on('postgres_changes', 
         { 
           event: 'INSERT', 
@@ -77,17 +79,47 @@ export const DirectMessages = () => {
           table: 'direct_messages',
           filter: `or(and(sender_id.eq.${user.id},receiver_id.eq.${selectedFriend.id}),and(sender_id.eq.${selectedFriend.id},receiver_id.eq.${user.id}))`
         },
-        (payload) => {
+        async (payload) => {
           console.log('New direct message received:', payload.new);
-          setMessages(prev => [...prev, payload.new as DirectMessage]);
+          
+          // Fetch the complete message with sender profile
+          const { data: messageWithSender } = await supabase
+            .from('direct_messages')
+            .select(`
+              *,
+              sender:profiles!direct_messages_sender_id_fkey(id, username, avatar_url)
+            `)
+            .eq('id', payload.new.id)
+            .single();
+
+          if (messageWithSender) {
+            setMessages(prev => {
+              // Check if message already exists to prevent duplicates
+              const exists = prev.some(msg => msg.id === messageWithSender.id);
+              if (exists) return prev;
+              return [...prev, messageWithSender];
+            });
+            
+            // Update conversations list
+            fetchConversations(friends);
+            
+            // Show toast for new messages from friends
+            if (messageWithSender.sender_id !== user.id) {
+              toast({
+                title: "New Message",
+                description: `${messageWithSender.sender?.username || 'Friend'}: ${messageWithSender.content.substring(0, 50)}...`
+              });
+            }
+          }
         }
       )
       .subscribe();
 
     return () => {
+      console.log('Cleaning up real-time subscription');
       supabase.removeChannel(channel);
     };
-  }, [user, selectedFriend]);
+  }, [user, selectedFriend, friends]);
 
   const fetchFriends = async () => {
     try {
@@ -207,14 +239,38 @@ export const DirectMessages = () => {
     }
   };
 
-  const sendGameResult = (message: string) => {
-    setNewMessage(message);
-    setShowGames(false);
-    // Auto-send the game result
-    setTimeout(() => {
-      const event = new Event('submit', { bubbles: true, cancelable: true });
-      document.querySelector('form')?.dispatchEvent(event);
-    }, 100);
+  const sendGameResult = async (message: string) => {
+    if (!selectedFriend || !user) return;
+
+    console.log('Sending game result:', message);
+    
+    try {
+      const { error } = await supabase
+        .from('direct_messages')
+        .insert({
+          sender_id: user.id,
+          receiver_id: selectedFriend.id,
+          content: message,
+          image_url: null
+        });
+
+      if (error) throw error;
+
+      setShowGames(false);
+      fetchConversations(friends);
+      
+      toast({
+        title: "Game Result Sent",
+        description: "Your game result has been shared!"
+      });
+    } catch (error: any) {
+      console.error('Error sending game result:', error);
+      toast({ 
+        title: "Error", 
+        description: "Failed to send game result. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const formatTimestamp = (timestamp: string) => {
