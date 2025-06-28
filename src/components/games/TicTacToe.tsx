@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 type Player = 'X' | 'O' | null;
+type GameResult = 'X' | 'O' | 'tie' | null;
 type Board = Player[];
 
 interface TicTacToeProps {
@@ -13,7 +14,7 @@ interface TicTacToeProps {
 export const TicTacToe = ({ onSendResult }: TicTacToeProps) => {
   const [board, setBoard] = useState<Board>(Array(9).fill(null));
   const [currentPlayer, setCurrentPlayer] = useState<'X' | 'O'>('X');
-  const [winner, setWinner] = useState<Player>(null);
+  const [winner, setWinner] = useState<GameResult>(null);
   const [score, setScore] = useState({ X: 0, O: 0, ties: 0 });
 
   const winningLines = [
@@ -22,10 +23,10 @@ export const TicTacToe = ({ onSendResult }: TicTacToeProps) => {
     [0, 4, 8], [2, 4, 6] // diagonals
   ];
 
-  const checkWinner = (board: Board): Player => {
+  const checkWinner = (board: Board): GameResult => {
     for (const [a, b, c] of winningLines) {
       if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-        return board[a];
+        return board[a] as 'X' | 'O';
       }
     }
     return board.every(cell => cell !== null) ? 'tie' : null;
