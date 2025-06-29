@@ -1,14 +1,16 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Send, ArrowLeft, Gamepad2 } from 'lucide-react';
+import { Send, ArrowLeft, Gamepad2, Play, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { ImageUpload } from '@/components/ImageUpload';
-import { GameMenu } from '@/components/games/GameMenu';
+import { MultiplayerGameMenu } from '@/components/games/MultiplayerGameMenu';
+import { VoiceRecorder } from '@/components/VoiceRecorder';
 
 interface Profile {
   id: string;
@@ -22,6 +24,7 @@ interface DirectMessage {
   receiver_id: string;
   content: string;
   image_url?: string;
+  voice_url?: string;
   created_at: string;
   sender?: Profile;
 }
@@ -64,30 +67,70 @@ export const DirectMessages = () => {
     }
   }, [selectedFriend, user]);
 
-  // Set up real-time subscription for direct messages
+  // Real-time subscription for direct messages
   useEffect(() => {
-    if (!user || !selectedFriend) return;
+    if (!user) return;
 
+    console.log('Setting up real-time subscription for direct messages');
+    
     const channel = supabase
       .channel('direct_messages_realtime')
       .on('postgres_changes', 
         { 
           event: 'INSERT', 
           schema: 'public', 
-          table: 'direct_messages',
-          filter: `or(and(sender_id.eq.${user.id},receiver_id.eq.${selectedFriend.id}),and(sender_id.eq.${selectedFriend.id},receiver_id.eq.${user.id}))`
+          table: 'direct_messages'
         },
-        (payload) => {
+        async (payload) => {
           console.log('New direct message received:', payload.new);
-          setMessages(prev => [...prev, payload.new as DirectMessage]);
+          
+          const newMessage = payload.new as DirectMessage;
+          
+          // Only process messages that involve the current user
+          if (newMessage.sender_id === user.id || newMessage.receiver_id === user.id) {
+            // Fetch the complete message with sender profile
+            const { data: messageWithSender } = await supabase
+              .from('direct_messages')
+              .select(`
+                *,
+                sender:profiles!direct_messages_sender_id_fkey(id, username, avatar_url)
+              `)
+              .eq('id', newMessage.id)
+              .single();
+
+            if (messageWithSender) {
+              // Update messages if this conversation is currently selected
+              if (selectedFriend && 
+                  (messageWithSender.sender_id === selectedFriend.id || 
+                   messageWithSender.receiver_id === selectedFriend.id)) {
+                setMessages(prev => {
+                  const exists = prev.some(msg => msg.id === messageWithSender.id);
+                  if (exists) return prev;
+                  return [...prev, messageWithSender];
+                });
+              }
+              
+              // Update conversations list
+              fetchConversations(friends);
+              
+              // Show toast for new messages from friends
+              if (messageWithSender.sender_id !== user.id) {
+                toast({
+                  title: "New Message",
+                  description: `${messageWithSender.sender?.username || 'Friend'}: ${messageWithSender.content ? messageWithSender.content.substring(0, 50) + '...' : 'Voice message'}`
+                });
+              }
+            }
+          }
         }
       )
       .subscribe();
 
     return () => {
+      console.log('Cleaning up real-time subscription');
       supabase.removeChannel(channel);
     };
-  }, [user, selectedFriend]);
+  }, [user, selectedFriend, friends]);
 
   const fetchFriends = async () => {
     try {
@@ -207,14 +250,111 @@ export const DirectMessages = () => {
     }
   };
 
-  const sendGameResult = (message: string) => {
-    setNewMessage(message);
-    setShowGames(false);
-    // Auto-send the game result
-    setTimeout(() => {
-      const event = new Event('submit', { bubbles: true, cancelable: true });
-      document.querySelector('form')?.dispatchEvent(event);
-    }, 100);
+  const sendVoiceMessage = async (voiceBlob: Blob) => {
+    if (!selectedFriend || !user) return;
+
+    try {
+      // Create a file from the blob
+      const fileName = `voice_${Date.now()}.webm`;
+      const file = new File([voiceBlob], fileName, { type: 'audio/webm' });
+      
+      // Upload to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('voice-messages')
+        .upload(`${user.id}/${fileName}`, file);
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw uploadError;
+      }
+
+      // Get the public URL
+      const { data: urlData } = supabase.storage
+        .from('voice-messages')
+        .getPublicUrl(uploadData.path);
+
+      // Insert the message with voice URL
+      const { error: insertError } = await supabase
+        .from('direct_messages')
+        .insert({
+          sender_id: user.id,
+          receiver_id: selectedFriend.id,
+          content: '',
+          voice_url: urlData.publicUrl
+        });
+
+      if (insertError) throw insertError;
+
+      fetchConversations(friends);
+      
+      toast({
+        title: "Voice Message Sent",
+        description: "Your voice message has been sent!"
+      });
+    } catch (error: any) {
+      console.error('Error sending voice message:', error);
+      toast({ 
+        title: "Error", 
+        description: "Failed to send voice message. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const clearChat = async () => {
+    if (!selectedFriend || !user) return;
+
+    try {
+      const { error } = await supabase
+        .from('direct_messages')
+        .delete()
+        .or(`and(sender_id.eq.${user.id},receiver_id.eq.${selectedFriend.id}),and(sender_id.eq.${selectedFriend.id},receiver_id.eq.${user.id})`);
+
+      if (error) throw error;
+
+      setMessages([]);
+      fetchConversations(friends);
+      
+      toast({
+        title: "Chat Cleared",
+        description: "All messages in this conversation have been deleted."
+      });
+    } catch (error: any) {
+      console.error('Error clearing chat:', error);
+      toast({ 
+        title: "Error", 
+        description: "Failed to clear chat. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const sendGameUpdate = async (gameData: any) => {
+    if (!selectedFriend || !user) return;
+
+    console.log('Sending game update:', gameData);
+    
+    try {
+      const { error } = await supabase
+        .from('direct_messages')
+        .insert({
+          sender_id: user.id,
+          receiver_id: selectedFriend.id,
+          content: JSON.stringify(gameData),
+          image_url: null
+        });
+
+      if (error) throw error;
+
+      fetchConversations(friends);
+    } catch (error: any) {
+      console.error('Error sending game update:', error);
+      toast({ 
+        title: "Error", 
+        description: "Failed to send game update. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const formatTimestamp = (timestamp: string) => {
@@ -286,25 +426,35 @@ export const DirectMessages = () => {
         <div className="lg:col-span-2">
           <Card className="h-[calc(100vh-180px)] flex flex-col">
             <CardHeader className="bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-t-lg">
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedFriend(null)}
+                    className="text-white hover:bg-white/20"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                  </Button>
+                  <Avatar>
+                    {selectedFriend.avatar_url ? (
+                      <AvatarImage src={selectedFriend.avatar_url} />
+                    ) : (
+                      <AvatarFallback className="bg-white text-purple-600">
+                        {selectedFriend.username?.charAt(0).toUpperCase() || '?'}
+                      </AvatarFallback>
+                    )}
+                  </Avatar>
+                  <CardTitle>{selectedFriend.username || 'Unknown User'}</CardTitle>
+                </div>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setSelectedFriend(null)}
+                  onClick={clearChat}
                   className="text-white hover:bg-white/20"
                 >
-                  <ArrowLeft className="w-4 h-4" />
+                  <Trash2 className="w-4 h-4" />
                 </Button>
-                <Avatar>
-                  {selectedFriend.avatar_url ? (
-                    <AvatarImage src={selectedFriend.avatar_url} />
-                  ) : (
-                    <AvatarFallback className="bg-white text-purple-600">
-                      {selectedFriend.username?.charAt(0).toUpperCase() || '?'}
-                    </AvatarFallback>
-                  )}
-                </Avatar>
-                <CardTitle>{selectedFriend.username || 'Unknown User'}</CardTitle>
               </div>
             </CardHeader>
 
@@ -343,7 +493,15 @@ export const DirectMessages = () => {
                           ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white'
                           : 'bg-gray-100 text-gray-800'
                       }`}>
-                        {message.content && <p className="text-sm">{message.content}</p>}
+                        {message.content && !message.content.startsWith('{') && (
+                          <p className="text-sm">{message.content}</p>
+                        )}
+                        {message.content && message.content.startsWith('{') && (
+                          <div className="text-sm">
+                            <p className="font-medium">🎮 Game Move</p>
+                            <p className="text-xs opacity-80">Check the game panel →</p>
+                          </div>
+                        )}
                         {message.image_url && (
                           <img 
                             src={message.image_url} 
@@ -351,6 +509,22 @@ export const DirectMessages = () => {
                             className="mt-2 max-w-full h-auto rounded cursor-pointer"
                             onClick={() => window.open(message.image_url, '_blank')}
                           />
+                        )}
+                        {message.voice_url && (
+                          <div className="flex items-center space-x-2 mt-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="p-1"
+                              onClick={() => {
+                                const audio = new Audio(message.voice_url);
+                                audio.play();
+                              }}
+                            >
+                              <Play className="w-4 h-4" />
+                            </Button>
+                            <span className="text-xs">Voice message</span>
+                          </div>
                         )}
                       </div>
                       <div className="mt-1 text-xs text-gray-500">
@@ -390,6 +564,7 @@ export const DirectMessages = () => {
                       disabled={loading}
                     />
                   )}
+                  <VoiceRecorder onVoiceRecorded={sendVoiceMessage} />
                   <Button
                     type="button"
                     onClick={() => setShowGames(!showGames)}
@@ -416,9 +591,13 @@ export const DirectMessages = () => {
         </div>
 
         {/* Games Section */}
-        {showGames && (
+        {showGames && selectedFriend && (
           <div className="lg:col-span-1">
-            <GameMenu onSendResult={sendGameResult} />
+            <MultiplayerGameMenu 
+              friendId={selectedFriend.id}
+              onGameUpdate={sendGameUpdate}
+              messages={messages.filter(m => m.content.startsWith('{'))}
+            />
           </div>
         )}
       </div>

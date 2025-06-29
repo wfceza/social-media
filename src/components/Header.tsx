@@ -1,7 +1,9 @@
 
 import { useAuth } from '@/hooks/useAuth';
+import { useNotifications } from '@/hooks/useNotifications';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { NotificationBadge } from '@/components/NotificationBadge';
 import { LogOut, MessageSquare, Heart, User, Users, Mail } from 'lucide-react';
 
 interface HeaderProps {
@@ -11,6 +13,7 @@ interface HeaderProps {
 
 export const Header = ({ currentView, onViewChange }: HeaderProps) => {
   const { user, logout } = useAuth();
+  const { counts, clearNotifications, markMessagesAsRead } = useNotifications();
 
   const handleLogout = async () => {
     try {
@@ -20,12 +23,27 @@ export const Header = ({ currentView, onViewChange }: HeaderProps) => {
     }
   };
 
+  const handleViewChange = (view: 'feed' | 'chat' | 'profile' | 'friends' | 'messages') => {
+    onViewChange(view);
+    
+    // Clear notifications when user visits the relevant section
+    if (view === 'feed') {
+      clearNotifications('posts');
+    } else if (view === 'chat') {
+      clearNotifications('chat');
+    } else if (view === 'messages') {
+      markMessagesAsRead();
+    } else if (view === 'friends') {
+      clearNotifications('friendRequests');
+    }
+  };
+
   const navItems = [
-    { key: 'feed', icon: Heart, label: 'Feed' },
-    { key: 'chat', icon: MessageSquare, label: 'Chat' },
-    { key: 'messages', icon: Mail, label: 'Messages' },
-    { key: 'friends', icon: Users, label: 'Friends' },
-    { key: 'profile', icon: User, label: 'Profile' }
+    { key: 'feed', icon: Heart, label: 'Feed', count: counts.posts },
+    { key: 'chat', icon: MessageSquare, label: 'Chat', count: counts.chat },
+    { key: 'messages', icon: Mail, label: 'Messages', count: counts.messages },
+    { key: 'friends', icon: Users, label: 'Friends', count: counts.friendRequests },
+    { key: 'profile', icon: User, label: 'Profile', count: 0 }
   ];
 
   return (
@@ -38,17 +56,18 @@ export const Header = ({ currentView, onViewChange }: HeaderProps) => {
               CEZAHUB
             </h1>
             <nav className="flex space-x-2">
-              {navItems.map(({ key, icon: Icon, label }) => (
-                <Button
-                  key={key}
-                  variant={currentView === key ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => onViewChange(key as any)}
-                  className="flex items-center space-x-2"
-                >
-                  <Icon className="w-4 h-4" />
-                  <span>{label}</span>
-                </Button>
+              {navItems.map(({ key, icon: Icon, label, count }) => (
+                <NotificationBadge key={key} count={count}>
+                  <Button
+                    variant={currentView === key ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => handleViewChange(key as any)}
+                    className="flex items-center space-x-2"
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span>{label}</span>
+                  </Button>
+                </NotificationBadge>
               ))}
             </nav>
           </div>
@@ -101,17 +120,18 @@ export const Header = ({ currentView, onViewChange }: HeaderProps) => {
 
           {/* Navigation grid */}
           <nav className="grid grid-cols-5 gap-1">
-            {navItems.map(({ key, icon: Icon, label }) => (
-              <Button
-                key={key}
-                variant={currentView === key ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => onViewChange(key as any)}
-                className="flex flex-col items-center space-y-1 h-auto py-2 px-1"
-              >
-                <Icon className="w-4 h-4" />
-                <span className="text-xs leading-none">{label}</span>
-              </Button>
+            {navItems.map(({ key, icon: Icon, label, count }) => (
+              <NotificationBadge key={key} count={count}>
+                <Button
+                  variant={currentView === key ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => handleViewChange(key as any)}
+                  className="flex flex-col items-center space-y-1 h-auto py-3 px-2 min-h-[60px] hover:bg-black-100 active:bg-black-200"
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="text-xs leading-none">{label}</span>
+                </Button>
+              </NotificationBadge>
             ))}
           </nav>
         </div>
